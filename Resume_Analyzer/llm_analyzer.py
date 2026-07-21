@@ -1,25 +1,22 @@
-import json
 import os
-
-import google.generativeai as genai
+import json
+import re
+from groq import Groq
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-# Load Gemini Model
-model = genai.GenerativeModel("gemini-2.5-flash")
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
 
 def analyze_resume(resume_text, job_description):
 
     prompt = f"""
-You are an AI Resume Analyzer.
+You are an ATS Resume Analyzer.
 
-Compare the following Resume with the Job Description.
+Compare the resume with the job description.
 
 Resume:
 {resume_text}
@@ -27,15 +24,9 @@ Resume:
 Job Description:
 {job_description}
 
-Analyze both and return ONLY a valid JSON object.
+Return ONLY a JSON object.
 
-Rules:
-1. Return ONLY JSON.
-2. No explanation.
-3. No markdown.
-4. No extra text.
-
-Return these exact keys:
+Format:
 
 {{
 "skill_match_percentage":0,
@@ -51,22 +42,35 @@ Return these exact keys:
 "education_score":0
 }}
 
-Scoring Guidelines:
+Rules:
 
-- Percentages: 0–100
-- Missing skill counts: integers
-- Scores: 0–100
-
-Be realistic.
+- Percentages between 0 and 100.
+- Counts must be integers.
+- Return JSON only.
 """
 
-    response = model.generate_content(prompt)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0
+    )
 
-    output = response.text.strip()
+    text = response.choices[0].message.content.strip()
 
-    # Remove markdown if Gemini returns it
-    output = output.replace("```json", "")
-    output = output.replace("```", "")
-    output = output.strip()
+    print("\n====== GROQ OUTPUT ======")
+    print(text)
+    print("=========================\n")
 
-    return json.loads(output)
+    text = text.replace("```json", "").replace("```", "").strip()
+
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+
+    if match:
+        text = match.group()
+
+    return json.loads(text)
