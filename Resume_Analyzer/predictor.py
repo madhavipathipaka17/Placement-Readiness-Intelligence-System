@@ -1,44 +1,50 @@
+# predictor.py
+
 import joblib
+import pandas as pd
 
-
-# Load the trained model
+# Load trained model
 model = joblib.load("models/placement_readiness_model.pkl")
 
-# Load the label encoder
+# Load label encoder
 label_encoder = joblib.load("models/readiness_label_encoder.pkl")
 
 
 def predict_readiness(feature_df):
     """
-    Predict placement readiness.
+    Predict placement readiness using the trained Random Forest model.
 
     Parameters
     ----------
     feature_df : pandas.DataFrame
-        DataFrame containing the 11 input features.
+        DataFrame containing the 11 ML features.
 
     Returns
     -------
-    dict
-        Predicted class and probabilities.
+    prediction : str
+        Predicted placement readiness category.
+
+    confidence : dict
+        Confidence (%) for every class.
     """
 
-    # Predict class
-    prediction = model.predict(feature_df)[0]
+    # Ensure input is DataFrame
+    if not isinstance(feature_df, pd.DataFrame):
+        feature_df = pd.DataFrame([feature_df])
 
-    # Convert numeric prediction back to label
-    predicted_label = label_encoder.inverse_transform([prediction])[0]
+    # Predict class index
+    prediction_index = model.predict(feature_df)[0]
+
+    # Convert numeric label to class name
+    prediction = label_encoder.inverse_transform([prediction_index])[0]
 
     # Predict probabilities
-    probabilities = model.predict_proba(feature_df)[0]
+    probs = model.predict_proba(feature_df)[0]
 
-    # Create probability dictionary
-    probability_dict = {}
-
-    for label, prob in zip(label_encoder.classes_, probabilities):
-        probability_dict[label] = round(prob * 100, 2)
-
-    return {
-        "predicted_class": predicted_label,
-        "probabilities": probability_dict
+    # Confidence dictionary
+    confidence = {
+        label: round(prob * 100, 2)
+        for label, prob in zip(label_encoder.classes_, probs)
     }
+
+    return prediction, confidence
